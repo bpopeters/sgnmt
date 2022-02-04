@@ -129,7 +129,7 @@ class FairseqPredictor(Predictor):
             self.incremental_states
         )
         lprobs[0, self.pad_id] = utils.NEG_INF
-        return np.array(lprobs[0])
+        return lprobs[0].cpu().numpy()
 
     def initialize(self, src_sentence):
         """Initialize source tensors, reset consumed."""
