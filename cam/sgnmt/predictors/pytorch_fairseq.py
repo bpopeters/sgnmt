@@ -23,6 +23,8 @@ The fairseq predictor can read any model trained with fairseq.
 
 import logging
 import os
+from typing import Dict, List, Optional
+
 
 from cam.sgnmt import utils
 from cam.sgnmt.predictors.core import Predictor
@@ -34,9 +36,10 @@ try:
     from fairseq import utils as fairseq_utils
     from fairseq.sequence_generator import EnsembleModel
     import torch
+    from torch import Tensor
     import numpy as np
 except ImportError:
-    pass # Deal with it in decode.py
+    pass  # Deal with it in decode.py
 
 
 FAIRSEQ_INITIALIZED = False
@@ -105,15 +108,28 @@ class FairseqPredictor(Predictor):
     def get_unk_probability(self, posterior):
         """Fetch posterior[utils.UNK_ID]"""
         return utils.common_get(posterior, utils.UNK_ID, utils.NEG_INF)
-                
+
     def predict_next(self):
         """Call the fairseq model."""
+        # ok, so this is where the EnsembleModel is called.
+        # note that the signature differs from deep-spin fairseq, which has
+        '''
+        lprobs, avg_attn_scores = self.model.forward_decoder(
+            tokens[:, : step + 1],
+            encoder_outs,
+            incremental_states,
+            self.temperature,
+            alpha=self.alpha
+        )
+        '''
         lprobs, _ = self.model.forward_decoder(
-            torch.LongTensor([self.consumed]), self.encoder_outs
+            torch.LongTensor([self.consumed]),
+            self.encoder_outs,
+            self.incremental_states
         )
         lprobs[0, self.pad_id] = utils.NEG_INF
         return np.array(lprobs[0])
-    
+
     def initialize(self, src_sentence):
         """Initialize source tensors, reset consumed."""
         self.consumed = []
@@ -129,29 +145,29 @@ class FairseqPredictor(Predictor):
             'src_lengths': src_lengths})
         self.consumed = [utils.GO_ID or utils.EOS_ID]
         # Reset incremental states
-        # commenting this out because the implementation of EnsembleModel has
-        # changed
-        '''
-        for model in self.models:
-            self.model.incremental_states[model] = {}
-        '''
-   
+        # do we want this jit?
+        self.incremental_states = torch.jit.annotate(
+            List[Dict[str, Dict[str, Optional[Tensor]]]],
+            [
+                torch.jit.annotate(Dict[str, Dict[str, Optional[Tensor]]], {})
+                for i in range(self.model.models_size)
+            ],
+        )
+
     def consume(self, word):
         """Append ``word`` to the current history."""
         self.consumed.append(word)
-    
+
     def get_state(self):
         """The predictor state is the complete history."""
-        return self.consumed, [self.model.incremental_states[m] 
-                               for m in self.models]
-    
+        return self.consumed, [state for state in self.incremental_states]
+
     def set_state(self, state):
         """The predictor state is the complete history."""
         self.consumed, inc_states = state
-        for model, inc_state in zip(self.models, inc_states):
-            self.model.incremental_states[model] = inc_state
+        for i in range(len(self.incremental_states)):
+            self.incremental_states[i] = inc_states
 
     def is_equal(self, state1, state2):
         """Returns true if the history is the same """
         return state1[0] == state2[0]
-
