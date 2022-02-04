@@ -122,8 +122,9 @@ class FairseqPredictor(Predictor):
             alpha=self.alpha
         )
         '''
+        consumed = torch.LongTensor([self.consumed], device="cuda" if self.use_cuda else "cpu")
         lprobs, _ = self.model.forward_decoder(
-            torch.LongTensor([self.consumed]),
+            consumed,
             self.encoder_outs,
             self.incremental_states
         )
