@@ -166,8 +166,7 @@ class FairseqPredictor(Predictor):
     def set_state(self, state):
         """The predictor state is the complete history."""
         self.consumed, inc_states = state
-        for i in range(len(self.incremental_states)):
-            self.incremental_states[i] = inc_states
+        self.incremental_states = inc_states
 
     def is_equal(self, state1, state2):
         """Returns true if the history is the same """
