@@ -122,14 +122,15 @@ class FairseqPredictor(Predictor):
             alpha=self.alpha
         )
         '''
-        consumed = torch.tensor([self.consumed], dtype=torch.long, device="cuda" if self.use_cuda else "cpu")
-        lprobs, _ = self.model.forward_decoder(
-            consumed,
-            self.encoder_outs,
-            self.incremental_states
-        )
-        lprobs[0, self.pad_id] = utils.NEG_INF
-        return lprobs[0].cpu().numpy()
+        with torch.no_grad()
+            consumed = torch.tensor([self.consumed], dtype=torch.long, device="cuda" if self.use_cuda else "cpu")
+            lprobs, _ = self.model.forward_decoder(
+                consumed,
+                self.encoder_outs,
+                self.incremental_states
+            )
+            lprobs[0, self.pad_id] = utils.NEG_INF
+            return lprobs[0].cpu().numpy()
 
     def initialize(self, src_sentence):
         """Initialize source tensors, reset consumed."""
@@ -141,9 +142,10 @@ class FairseqPredictor(Predictor):
         if self.use_cuda:
             src_tokens = src_tokens.cuda()
             src_lengths = src_lengths.cuda()
-        self.encoder_outs = self.model.forward_encoder({
-            'src_tokens': src_tokens,
-            'src_lengths': src_lengths})
+        with torch.no_grad():
+            self.encoder_outs = self.model.forward_encoder({
+                'src_tokens': src_tokens,
+                'src_lengths': src_lengths})
         self.consumed = [utils.GO_ID or utils.EOS_ID]
         # Reset incremental states
         # do we want this jit?
