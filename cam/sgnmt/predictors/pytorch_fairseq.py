@@ -129,8 +129,12 @@ class FairseqPredictor(Predictor):
             'src_lengths': src_lengths})
         self.consumed = [utils.GO_ID or utils.EOS_ID]
         # Reset incremental states
+        # commenting this out because the implementation of EnsembleModel has
+        # changed
+        '''
         for model in self.models:
             self.model.incremental_states[model] = {}
+        '''
    
     def consume(self, word):
         """Append ``word`` to the current history."""
