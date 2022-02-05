@@ -122,7 +122,7 @@ class FairseqPredictor(Predictor):
             alpha=self.alpha
         )
         '''
-        with torch.no_grad()
+        with torch.no_grad():
             consumed = torch.tensor([self.consumed], dtype=torch.long, device="cuda" if self.use_cuda else "cpu")
             lprobs, _ = self.model.forward_decoder(
                 consumed,
