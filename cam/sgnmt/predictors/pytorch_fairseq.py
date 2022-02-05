@@ -59,7 +59,7 @@ def _initialize_fairseq(user_dir):
 class FairseqPredictor(Predictor):
     """Predictor for using fairseq models."""
 
-    def __init__(self, model_path, user_dir, lang_pair, n_cpu_threads=-1):
+    def __init__(self, model_path, user_dir, lang_pair, n_cpu_threads=-1, alpha=1.):
         """Initializes a fairseq predictor.
 
         Args:
@@ -69,6 +69,8 @@ class FairseqPredictor(Predictor):
             user_dir (string): Path to fairseq user directory.
             n_cpu_threads (int): Number of CPU threads. If negative,
                                  use GPU.
+            alpha (float): entmax alpha for decoding (defaults to 1, which
+                           recovers softmax)
         """
         super(FairseqPredictor, self).__init__()
         _initialize_fairseq(user_dir)
@@ -105,29 +107,22 @@ class FairseqPredictor(Predictor):
         self.model = EnsembleModel(self.models)
         self.model.eval()
 
+        self.alpha = alpha
+
     def get_unk_probability(self, posterior):
         """Fetch posterior[utils.UNK_ID]"""
         return utils.common_get(posterior, utils.UNK_ID, utils.NEG_INF)
 
     def predict_next(self):
         """Call the fairseq model."""
-        # ok, so this is where the EnsembleModel is called.
-        # note that the signature differs from deep-spin fairseq, which has
-        '''
-        lprobs, avg_attn_scores = self.model.forward_decoder(
-            tokens[:, : step + 1],
-            encoder_outs,
-            incremental_states,
-            self.temperature,
-            alpha=self.alpha
-        )
-        '''
         with torch.no_grad():
             consumed = torch.tensor([self.consumed], dtype=torch.long, device="cuda" if self.use_cuda else "cpu")
+            # note that this does not currently support decoding with temperature
             lprobs, _ = self.model.forward_decoder(
                 consumed,
                 self.encoder_outs,
-                self.incremental_states
+                self.incremental_states,
+                alpha=self.alpha
             )
             lprobs[0, self.pad_id] = utils.NEG_INF
             return lprobs[0].cpu().numpy()

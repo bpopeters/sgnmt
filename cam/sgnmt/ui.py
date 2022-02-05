@@ -622,6 +622,9 @@ def get_parser():
     group.add_argument("--bpe_codes", default="",
                         help="Must be set if preprocessing=bpe. Path to the "
                         "BPE codes file from Sennrich's subword_nmt.")
+    group.add_argument("--alpha", default=1.0, type=float,
+                       help="entmax alpha for decoding (requires fairseq "
+                       "predictor).")
     
     ## Predictor options
     

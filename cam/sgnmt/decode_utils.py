@@ -323,7 +323,8 @@ def add_predictors(decoder):
                 p = FairseqPredictor(_get_override_args("fairseq_path"),
                                      args.fairseq_user_dir,
                                      args.fairseq_lang_pair,
-                                     args.n_cpu_threads)
+                                     args.n_cpu_threads,
+                                     alpha=args.alpha)
             elif pred == "bracket":
                 p = BracketPredictor(args.syntax_max_terminal_id,
                                      args.syntax_pop_id,
