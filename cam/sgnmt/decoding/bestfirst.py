@@ -108,11 +108,14 @@ class BestFirstDecoder(Decoder):
 
             # we can use posterior.items() to get children
             # push the successors of the current hypothesis onto the open set.
-            for tgt_word in children:
-                next_hypo = hypo.cheap_expand(tgt_word, posterior[tgt_word],
-                                              score_breakdown[tgt_word])
-                combined_score = next_hypo.score  # maybe?
-                heappush(open_set, (combined_score, next_hypo))
+            for tgt_word, score in children:
+                next_hypo = hypo.expand(
+                    tgt_word,
+                    None,  # Do not store states
+                    score,
+                    score_breakdown[tgt_word]
+                )
+                heappush(open_set, (next_hypo.score, next_hypo))
             # Limit heap capacity
             if self.capacity > 0 and len(open_set) > self.capacity:
                 new_open_set = []
