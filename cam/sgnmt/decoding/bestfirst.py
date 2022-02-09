@@ -95,7 +95,6 @@ class BestFirstDecoder(Decoder):
                 self.consume(hypo.word_to_consume)
                 hypo.word_to_consume = None
 
-            # some stuff
             posterior, score_breakdown = self.apply_predictors()
             hypo.predictor_states = self.get_predictor_states()
 
@@ -109,9 +108,8 @@ class BestFirstDecoder(Decoder):
             # we can use posterior.items() to get children
             # push the successors of the current hypothesis onto the open set.
             for tgt_word, score in children:
-                next_hypo = hypo.expand(
+                next_hypo = hypo.cheap_expand(
                     tgt_word,
-                    None,  # Do not store states
                     score,
                     score_breakdown[tgt_word]
                 )
