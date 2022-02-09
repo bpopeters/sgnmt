@@ -2,11 +2,36 @@
 
 
 import copy
-from heapq import heappush, heappop
+import heapq
 import logging
 
 from cam.sgnmt import utils
 from cam.sgnmt.decoding.core import Decoder, PartialHypothesis
+
+
+class PQueue:
+    # why? Because I don't like the heapq interface
+    def __init__(self, maxheap=True):
+        self.maxheap = maxheap
+        self.heap = []
+
+    def pop(self):
+        score, data = heapq.heappop(self.heap)
+        if self.maxheap:
+            score = -score
+        return score, data
+
+    def append(self, item):
+        score, data = item
+        if self.maxheap:
+            score = -score
+        heapq.heappush(self.heap, (score, data))
+
+    def __len__(self):
+        return len(self.heap)
+
+    def __bool__(self):
+        return bool(self.heap)
 
 
 class BestFirstDecoder(Decoder):
@@ -46,14 +71,13 @@ class BestFirstDecoder(Decoder):
     def decode(self, src_sentence):
         """Decodes a single source sentence using A* search. """
         self.initialize_predictors(src_sentence)
-        open_set = []
+        open_set = PQueue()
         best_score = self.get_lower_score_bound()
-        heappush(open_set, (0.0,
-                            PartialHypothesis(self.get_predictor_states())))
+        open_set.append((0.0, PartialHypothesis(self.get_predictor_states())))
         # change the while loop to account for maximum
         while open_set:
             # pop the best partial hypothesis
-            c, hypo = heappop(open_set)
+            c, hypo = open_set.pop()
 
             # optional early stopping: if the current hypothesis is not good
             # enough (worse score than the best already found), ignore it and
@@ -113,11 +137,11 @@ class BestFirstDecoder(Decoder):
                     score,
                     score_breakdown[tgt_word]
                 )
-                heappush(open_set, (next_hypo.score, next_hypo))
+                open_set.append((next_hypo.score, next_hypo))
             # Limit heap capacity
             if self.capacity > 0 and len(open_set) > self.capacity:
-                new_open_set = []
+                new_open_set = PQueue()
                 for _ in range(self.capacity):
-                    heappush(new_open_set, heappop(open_set))
+                    new_open_set.append(open_set.pop())
                 open_set = new_open_set
         return self.get_full_hypos_sorted()
