@@ -86,9 +86,8 @@ class BestFirstDecoder(Decoder):
                 continue
 
             # log the just-popped (partial) hypothesis
-            logging.debug("Expand (est=%f score=%f exp=%d best=%f): sentence: %s"
-                          % (-c,
-                             hypo.score,
+            logging.debug("Expand (score=%f exp=%d best=%f): sentence: %s"
+                          % (hypo.score,
                              self.apply_predictors_count,
                              best_score,
                              hypo.trgt_sentence))
