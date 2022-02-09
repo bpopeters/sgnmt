@@ -99,8 +99,16 @@ class BestFirstDecoder(Decoder):
             posterior, score_breakdown = self.apply_predictors()
             hypo.predictor_states = self.get_predictor_states()
 
+            # generate filtered list of successors to add to open_set
+            if self.early_stopping:
+                worst_score = best_score - hypo.score
+                children = [i for i in posterior.items() if i[1] > worst_score]
+            else:
+                children = [i for i in posterior.items()]
+
+            # we can use posterior.items() to get children
             # push the successors of the current hypothesis onto the open set.
-            for tgt_word in posterior:
+            for tgt_word in children:
                 next_hypo = hypo.cheap_expand(tgt_word, posterior[tgt_word],
                                               score_breakdown[tgt_word])
                 combined_score = next_hypo.score  # maybe?
