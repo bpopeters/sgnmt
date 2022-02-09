@@ -63,6 +63,8 @@ from cam.sgnmt.decoding.syncbeam import SyncBeamDecoder
 from cam.sgnmt.decoding.fstbeam import FSTBeamDecoder
 from cam.sgnmt.decoding.predlimitbeam import PredLimitBeamDecoder
 from cam.sgnmt.decoding.combibeam import CombiBeamDecoder
+from cam.sgnmt.decoding.bestfirst import BestFirstDecoder
+
 from cam.sgnmt.output import TextOutputHandler, \
                              NBestOutputHandler, \
                              NgramOutputHandler, \
@@ -645,6 +647,8 @@ def create_decoder():
                                     args.collect_statistics)
         elif args.decoder == "astar":
             decoder = AstarDecoder(args)
+        elif args.decoder == "bestfirst":
+            decoder = BestFirstDecoder(args)
         else:
             logging.fatal("Decoder %s not available. Please double-check the "
                           "--decoder parameter." % args.decoder)
