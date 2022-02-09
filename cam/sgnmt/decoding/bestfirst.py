@@ -1,6 +1,6 @@
 """Implementation of best-first search"""
 
-
+import math
 import copy
 import heapq
 import logging
@@ -66,7 +66,6 @@ class BestFirstDecoder(Decoder):
         super(BestFirstDecoder, self).__init__(decoder_args)
         self.nbest = max(1, decoder_args.nbest)
         self.capacity = decoder_args.beam
-        self.early_stopping = decoder_args.early_stopping
 
     def decode(self, src_sentence):
         """Decodes a single source sentence using A* search. """
@@ -79,11 +78,7 @@ class BestFirstDecoder(Decoder):
             # pop the best partial hypothesis
             c, hypo = open_set.pop()
 
-            # optional early stopping: if the current hypothesis is not good
-            # enough (worse score than the best already found), ignore it and
-            # do not add any of its successors to the open set
-            if self.early_stopping and hypo.score < best_score:
-                continue
+            # there used to be early stopping here
 
             # log the just-popped (partial) hypothesis
             logging.debug("Expand (score=%f exp=%d best=%f): sentence: %s"
@@ -122,11 +117,7 @@ class BestFirstDecoder(Decoder):
             hypo.predictor_states = self.get_predictor_states()
 
             # generate filtered list of successors to add to open_set
-            if self.early_stopping:
-                worst_score = best_score - hypo.score
-                children = [i for i in posterior.items() if i[1] > worst_score]
-            else:
-                children = [i for i in posterior.items()]
+            children = [i for i in posterior.items() if i[1] > -math.inf]
 
             # we can use posterior.items() to get children
             # push the successors of the current hypothesis onto the open set.
