@@ -147,6 +147,24 @@ class PartialHypothesis(object):
         hypo.word_to_consume = word
         return hypo
 
+    def __eq__(self, other):
+        return self.score == other.score
+
+    def __ne__(self, other):
+        return self.score != other.score
+
+    def __lt__(self, other):
+        return self.score < other.score
+
+    def __gt__(self, other):
+        return self.score > other.score
+
+    def __le__(self, other):
+        return self.score <= other.score
+
+    def __ge__(self, other):
+        return self.score >= other.score
+
 
 """The ``CLOSED_VOCAB_SCORE_NORM_*`` constants define the normalization
 behavior for closed vocabulary predictor scores. Closed vocabulary 
