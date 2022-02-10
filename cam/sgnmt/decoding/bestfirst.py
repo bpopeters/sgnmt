@@ -46,12 +46,6 @@ class BestFirstDecoder(Decoder):
             [bpop: need to decide what really goes here]
 
             beam (int): Maximum number of active hypotheses.
-            early_stopping (bool): If this is true, partial hypotheses
-                                   with score worse than the current
-                                   best complete scores are not
-                                   expanded. This applies when nbest is
-                                   larger than one and inadmissible
-                                   heuristics are used
             nbest (int): If this is set to a positive value, we do not
                          stop decoding at the first complete path, but
                          continue search until we collected this many
@@ -72,43 +66,43 @@ class BestFirstDecoder(Decoder):
         self.initialize_predictors(src_sentence)
         open_set = PQueue()
         best_score = self.get_lower_score_bound()
+        covered_mass = 0.0
         open_set.append((0.0, PartialHypothesis(self.get_predictor_states())))
         # change the while loop to account for maximum
         while open_set:
             # pop the best partial hypothesis
-            c, hypo = open_set.pop()
-
-            # there used to be early stopping here
+            curr_priority, hypo = open_set.pop()
 
             # log the just-popped (partial) hypothesis
-            logging.debug("Expand (score=%f exp=%d best=%f): sentence: %s"
+            # another thing that should be included: the total mass found
+            logging.debug("Expand (score=%f exp=%d best=%f total=%f): sentence: %s"
                           % (hypo.score,
                              self.apply_predictors_count,
                              best_score,
+                             covered_mass,
                              hypo.trgt_sentence))
 
             # is the current hypothesis finished?
             if hypo.get_last_word() == utils.EOS_ID:
+                # maybe update best score
                 if hypo.score > best_score:
-                    # update best score
-                    logging.debug("New best hypo (score=%f exp=%d): %s" % (
-                            hypo.score,
-                            self.apply_predictors_count,
-                            ' '.join([str(w) for w in hypo.trgt_sentence])))
                     best_score = hypo.score
 
-                # add full hypothesis: I think this is the closed set
+                # add full hypothesis to closed set
                 self.add_full_hypo(hypo.generate_full_hypothesis())
+
+                # update total covered mass (this assumes that hypo.score is
+                # log probability)
+                covered_mass += math.exp(hypo.score)
+
+                # if enough hypotheses have been found already, return them
                 if len(self.full_hypos) >= self.nbest:
                     return self.get_full_hypos_sorted()
                 continue
 
             # if you make it here, the current hypothesis is incomplete
-            # I'm not completely sure what set_predictor_states does; it
-            # probably advances the decoder by one time step
             self.set_predictor_states(copy.deepcopy(hypo.predictor_states))
 
-            # I do not know what consuming does
             if hypo.word_to_consume is not None:  # Consume if cheap expand
                 self.consume(hypo.word_to_consume)
                 hypo.word_to_consume = None
@@ -117,18 +111,34 @@ class BestFirstDecoder(Decoder):
             hypo.predictor_states = self.get_predictor_states()
 
             # generate filtered list of successors to add to open_set
-            children = [i for i in posterior.items() if i[1] > -math.inf]
+            # this technique for generating children might be referred to
+            # as "sparse filtering" -> don't consider any hypothesis with
+            # probability 0.
+            children = sorted(
+                [i for i in posterior.items() if i[1] > -math.inf],
+                key=lambda child: child[1],
+                reverse=True
+            )
 
-            # we can use posterior.items() to get children
             # push the successors of the current hypothesis onto the open set.
-            for tgt_word, score in children:
+            for i, (tgt_word, score) in enumerate(children):
+                # it's important to distinguish a hypo's score (log prob) from
+                # its priority (potentially something else)
                 next_hypo = hypo.cheap_expand(
                     tgt_word,
                     score,
                     score_breakdown[tgt_word]
                 )
-                open_set.append((next_hypo.score, next_hypo))
-            # Limit heap capacity
+                # the pq score might not be the same as the
+                # "true" hypothesis score (the log prob).
+                priority = next_hypo.score if i != 0 else math.inf
+
+                open_set.append((priority, next_hypo))
+            # Prune hypotheses if too many are stored.
+            # heapq.nlargest might be useful here.
+            # regardless, is this inefficient? It seems to me that this will
+            # be called very frequently unless the capacity is infinite or
+            # very large.
             if self.capacity > 0 and len(open_set) > self.capacity:
                 new_open_set = PQueue()
                 for _ in range(self.capacity):
