@@ -67,6 +67,7 @@ class BestFirstDecoder(Decoder):
         open_set = PQueue()
         best_score = self.get_lower_score_bound()
         covered_mass = 0.0
+        nodes_pruned = 0
         open_set.append((0.0, PartialHypothesis(self.get_predictor_states())))
         # change the while loop to account for maximum
         while open_set:
@@ -75,9 +76,10 @@ class BestFirstDecoder(Decoder):
 
             # log the just-popped (partial) hypothesis
             # another thing that should be included: the total mass found
-            logging.debug("Expand (score=%f exp=%d best=%f total=%f): sentence: %s"
+            logging.debug("Expand (score=%f exp=%d pruned=%d best=%f total=%f): sentence: %s"
                           % (hypo.score,
                              self.apply_predictors_count,
+                             nodes_pruned,
                              best_score,
                              covered_mass,
                              hypo.trgt_sentence))
@@ -131,6 +133,7 @@ class BestFirstDecoder(Decoder):
                 )
                 # the pq score might not be the same as the
                 # "true" hypothesis score (the log prob).
+                # I need a name for this style of scoring.
                 priority = next_hypo.score if i != 0 else math.inf
 
                 open_set.append((priority, next_hypo))
@@ -140,6 +143,7 @@ class BestFirstDecoder(Decoder):
             # be called very frequently unless the capacity is infinite or
             # very large.
             if self.capacity > 0 and len(open_set) > self.capacity:
+                nodes_pruned += len(open_set) - self.capacity
                 new_open_set = PQueue()
                 for _ in range(self.capacity):
                     new_open_set.append(open_set.pop())
