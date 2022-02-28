@@ -60,6 +60,28 @@ class BestFirstDecoder(Decoder):
         super(BestFirstDecoder, self).__init__(decoder_args)
         self.nbest = max(1, decoder_args.nbest)
         self.capacity = decoder_args.beam
+        self.ad_hoc_completion = True
+        # sparse is the same as "none" for dense models. Also consider topk,
+        # nucleus
+        self.child_filtering = "sparse"
+
+    def recombine(self, hypo):
+        """
+        If hypo is recombinable, add it (meaning it and its continuation)
+        to self.full_list.
+        """
+        return False
+
+    def filter_children(self, posterior):
+        """
+        This also orders children, it doesn't just filter them
+        """
+        children = sorted(
+            [i for i in posterior.items() if i[1] > -math.inf],
+            key=lambda child: child[1],
+            reverse=True
+        )
+        return children
 
     def decode(self, src_sentence):
         """Decodes a single source sentence using A* search. """
@@ -83,6 +105,12 @@ class BestFirstDecoder(Decoder):
                              best_score,
                              covered_mass,
                              hypo.trgt_sentence))
+
+            recombinable = self.recombine(hypo)
+            if recombinable:
+                # self.recombine updates self.full_list in place, so it isn't
+                # necessary to interact with it here.
+                continue
 
             # is the current hypothesis finished?
             if hypo.get_last_word() == utils.EOS_ID:
@@ -113,28 +141,22 @@ class BestFirstDecoder(Decoder):
             hypo.predictor_states = self.get_predictor_states()
 
             # generate filtered list of successors to add to open_set
-            # this technique for generating children might be referred to
-            # as "sparse filtering" -> don't consider any hypothesis with
-            # probability 0.
-            children = sorted(
-                [i for i in posterior.items() if i[1] > -math.inf],
-                key=lambda child: child[1],
-                reverse=True
-            )
+            children = self.filter_children(posterior)
 
             # push the successors of the current hypothesis onto the open set.
             for i, (tgt_word, score) in enumerate(children):
-                # it's important to distinguish a hypo's score (log prob) from
-                # its priority (potentially something else)
                 next_hypo = hypo.cheap_expand(
                     tgt_word,
                     score,
                     score_breakdown[tgt_word]
                 )
-                # the pq score might not be the same as the
-                # "true" hypothesis score (the log prob).
-                # I need a name for this style of scoring.
-                priority = next_hypo.score if i != 0 else math.inf
+
+                # a hypo's score (log prob) may be different from
+                # its priority (potentially something else)
+                if self.ad_hoc_completion:
+                    priority = next_hypo.score if i != 0 else math.inf
+                else:
+                    priority = next_hypo.score
 
                 open_set.append((priority, next_hypo))
             # Prune hypotheses if too many are stored.
