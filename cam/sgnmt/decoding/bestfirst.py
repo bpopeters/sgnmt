@@ -4,9 +4,14 @@ import math
 import copy
 import heapq
 import logging
+from collections import defaultdict
 
 from cam.sgnmt import utils
 from cam.sgnmt.decoding.core import Decoder, PartialHypothesis
+
+
+def ngrams(sequence, n):
+    return tuple(zip(*[sequence[i:] for i in range(n)]))
 
 
 class PQueue:
@@ -64,12 +69,56 @@ class BestFirstDecoder(Decoder):
         # sparse is the same as "none" for dense models. Also consider topk,
         # nucleus
         self.child_filtering = "sparse"
+        # enabling n and alpha produces RCB. Enabling zip propagates the merge
+        # backward.
+        self.recomb_n = 0
+        self.recomb_alpha = 0
+        self.recomb_zip = False
+
+        self.ngrams = defaultdict(set)
+        # RCB: merge hypotheses if they share their last n-gram and differ
+        # from finished hypotheses in length by less than alpha
+
+    def add_full_hypo(self, hypo):
+        # we need to keep track of all of the n-grams in the full hypo
+        # maybe divided by length? not sure.
+        # But the general idea is, map from n-grams to the full hypotheses
+        # that contain them.
+        # Is it possible that multiple hypotheses will share the same final
+        # ngram? Probably.
+        # hypo.trgt_sentence[-self.recomb_n:]
+        # I guess we need to add *all* of the ngrams from the new full
+        # hypothesis.
+        if self.recomb_n > 0:
+            i = len(self.full_hypos)
+            hypo_ngrams = ngrams(hypo.trgt_sentence)
+            for ngram in hypo_ngrams:
+                self.ngrams[ngram].add(i)
+        super().add_full_hypo(hypo)
 
     def recombine(self, hypo):
         """
         If hypo is recombinable, add it (meaning it and its continuation)
         to self.full_list.
         """
+        # Find the full hypotheses that "match" hypo.
+        # If there are any, add them to the list of complete hypotheses and
+        # return True.
+        # Otherwise, return False.
+
+        # The challenge so far is figuring out how to make sure the new
+        # finished hypotheses contain the right data.
+
+        # so, what is the last ngram of this hypothesis?
+        hypo_len = len(hypo.trgt_sentence)
+        last_ngram = hypo.tgt_sentence[-self.recomb_n:]
+        # what hypotheses match this?
+        matches = self.ngrams[last_ngram]
+        # Now this is confusing. There may be several matches (i.e. finished
+        # hypotheses that contain last_ngram somewhere in them)
+        if matches:
+            recomb_suffixes = [self.full_hypos[i] for i in matches]
+            # do we add all of the matches or only one of them?
         return False
 
     def filter_children(self, posterior):
@@ -146,9 +195,7 @@ class BestFirstDecoder(Decoder):
             # push the successors of the current hypothesis onto the open set.
             for i, (tgt_word, score) in enumerate(children):
                 next_hypo = hypo.cheap_expand(
-                    tgt_word,
-                    score,
-                    score_breakdown[tgt_word]
+                    tgt_word, score, score_breakdown[tgt_word]
                 )
 
                 # a hypo's score (log prob) may be different from
