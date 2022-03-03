@@ -102,7 +102,7 @@ class PartialHypothesis(object):
             score_breakdown (list): Predictor score breakdown for
                                     the new word
         """
-        new_hypo = PartialHypothesis(states)
+        new_hypo = type(self)(states)
         new_hypo.score = self.score + score
         new_hypo.score_breakdown = copy.copy(self.score_breakdown)
         new_hypo.trgt_sentence = self.trgt_sentence + [word]

@@ -39,6 +39,26 @@ class PQueue:
         return bool(self.heap)
 
 
+class LatticePartialHypothesis(PartialHypothesis):
+
+    def merge(self, other, merge_loc):
+        """
+        other: another LatticePartialHypothesis
+        merge_loc: position in other at which to attach
+        """
+        merged_hypo = type(self)(None)
+        merged_hypo.trgt_sentence = self.trgt_sentence + other.trgt_sentence[merge_loc:]
+        merged_hypo.score_breakdown = self.score_breakdown + other.score_breakdown[merge_loc:]
+        # hard part: score:
+        # score_breakdown is a list.
+        # each element in it is a list of tuples
+        # each tuple is a (raw_score, weight) tuple
+        suffix_breakdown = other.score_breakdown[merge_loc:]
+        suffix_score = sum(sum(raw * weight for (raw, weight) in pred_scores) for pred_scores in suffix_breakdown)
+        merged_hypo.score = self.score + suffix_score
+        return merged_hypo
+
+
 class BestFirstDecoder(Decoder):
     """
     Best-first decoding as from single-queue decoding or the
@@ -81,7 +101,7 @@ class BestFirstDecoder(Decoder):
 
     def add_full_hypo(self, hypo):
         # we need to keep track of all of the n-grams in the full hypo
-        # maybe divided by length? not sure.
+        # maybe stratified by length? not sure.
         # But the general idea is, map from n-grams to the full hypotheses
         # that contain them.
         # Is it possible that multiple hypotheses will share the same final
@@ -92,8 +112,9 @@ class BestFirstDecoder(Decoder):
         if self.recomb_n > 0:
             i = len(self.full_hypos)
             hypo_ngrams = ngrams(hypo.trgt_sentence)
-            for ngram in hypo_ngrams:
-                self.ngrams[ngram].add(i)
+            for j, ngram in enumerate(hypo_ngrams):
+                # j is the start index of the ngram
+                self.ngrams[ngram].add((i, j))
         super().add_full_hypo(hypo)
 
     def recombine(self, hypo):
@@ -105,20 +126,15 @@ class BestFirstDecoder(Decoder):
         # If there are any, add them to the list of complete hypotheses and
         # return True.
         # Otherwise, return False.
-
-        # The challenge so far is figuring out how to make sure the new
-        # finished hypotheses contain the right data.
-
-        # so, what is the last ngram of this hypothesis?
-        hypo_len = len(hypo.trgt_sentence)
-        last_ngram = hypo.tgt_sentence[-self.recomb_n:]
-        # what hypotheses match this?
+        last_ngram = hypo.trgt_sentence[-self.recomb_n:]
         matches = self.ngrams[last_ngram]
-        # Now this is confusing. There may be several matches (i.e. finished
-        # hypotheses that contain last_ngram somewhere in them)
         if matches:
-            recomb_suffixes = [self.full_hypos[i] for i in matches]
-            # do we add all of the matches or only one of them?
+            for finished_index, match_pos in matches:
+                finished_hypo = self.full_hypos[finished_index]
+                new_hypo = self.merge(finished_hypo, match_pos)
+                self.add_full_hypo(new_hypo)
+            # do we add all of the matches or only one of them? all for now
+            return True
         return False
 
     def filter_children(self, posterior):
@@ -139,7 +155,7 @@ class BestFirstDecoder(Decoder):
         best_score = self.get_lower_score_bound()
         covered_mass = 0.0
         nodes_pruned = 0
-        open_set.append((0.0, PartialHypothesis(self.get_predictor_states())))
+        open_set.append((0.0, LatticePartialHypothesis(self.get_predictor_states())))
         # change the while loop to account for maximum
         while open_set:
             # pop the best partial hypothesis
