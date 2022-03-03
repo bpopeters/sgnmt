@@ -135,7 +135,7 @@ class BestFirstDecoder(Decoder):
                 new_hypo = hypo.merge(finished_hypo, match_pos)
                 new_hypos.append(new_hypo)
             for h in new_hypos:
-                self.add_full_hypo(h)
+                self.add_full_hypo(h.generate_full_hypothesis())
             # do we add all of the matches or only one of them? all for now
             return True
         return False
