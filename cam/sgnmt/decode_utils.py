@@ -919,6 +919,11 @@ def do_decode(decoder, output_handlers, src_sentences):
             logging.info("Decoded (ID: %d): %s" % (
                     sen_idx+1,
                     io.decode(hypos[0].trgt_sentence)))
+            for i, h in enumerate(hypos):
+                logging.info("Decoded %d-best (ID: %d): %s" % (
+                             i + 1,
+                             sen_idx + 1,
+                             io.decode(h.trgt_sentence)))
             logging.info("Stats (ID: %d): score=%f "
                          "num_expansions=%d "
                          "time=%.2f" % (sen_idx+1,

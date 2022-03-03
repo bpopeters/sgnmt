@@ -113,25 +113,18 @@ class BestFirstDecoder(Decoder):
         If hypo is recombinable, add it (meaning it and its continuation)
         to self.full_list.
         """
-        # Find the full hypotheses that "match" hypo.
-        # If there are any, add them to the list of complete hypotheses and
-        # return True.
-        # Otherwise, return False.
+        new_hypos = []
+
         last_ngram = tuple(hypo.trgt_sentence[-self.recomb_n:])
         matches = self.ngrams[last_ngram]
         if matches:
-            new_hypos = []
             for finished_index, match_pos in matches:
                 finished_hypo = self.full_hypos[finished_index]
                 len_diff = abs(len(finished_hypo.trgt_sentence) - len(hypo.trgt_sentence))
                 if len_diff < self.recomb_alpha:
                     new_hypo = hypo.merge(finished_hypo, match_pos)
                     new_hypos.append(new_hypo)
-            for h in new_hypos:
-                self.add_full_hypo(h.generate_full_hypothesis())
-            # do we add all of the matches or only one of them? all for now
-            return True
-        return False
+        return new_hypos
 
     def filter_children(self, posterior):
         """
@@ -153,7 +146,8 @@ class BestFirstDecoder(Decoder):
         nodes_pruned = 0
         open_set.append((0.0, LatticePartialHypothesis(self.get_predictor_states())))
         # change the while loop to account for maximum
-        while open_set:
+        # need to change stopping conditions
+        while open_set and len(self.full_hypos) < self.nbest:
             # pop the best partial hypothesis
             curr_priority, hypo = open_set.pop()
 
@@ -167,10 +161,13 @@ class BestFirstDecoder(Decoder):
                              covered_mass,
                              hypo.trgt_sentence))
 
-            recombinable = self.recombine(hypo)
-            if recombinable:
+            recombination_hypos = self.recombine(hypo)
+            if recombination_hypos:
                 # self.recombine updates self.full_list in place, so it isn't
                 # necessary to interact with it here.
+                for rec_hypo in recombination_hypos:
+                    covered_mass += math.exp(rec_hypo.score)  # might be problematic
+                    self.add_full_hypo(rec_hypo.generate_full_hypothesis())
                 continue
 
             # is the current hypothesis finished?
@@ -186,9 +183,6 @@ class BestFirstDecoder(Decoder):
                 # log probability)
                 covered_mass += math.exp(hypo.score)
 
-                # if enough hypotheses have been found already, return them
-                if len(self.full_hypos) >= self.nbest:
-                    return self.get_full_hypos_sorted()
                 continue
 
             # if you make it here, the current hypothesis is incomplete
