@@ -91,9 +91,11 @@ class BestFirstDecoder(Decoder):
         self.child_filtering = "sparse"
         # enabling n and alpha produces RCB. Enabling zip propagates the merge
         # backward.
-        self.recomb_n = decoder_args.recomb_n
-        self.recomb_alpha = decoder_args.recomb_alpha
-        self.recomb_zip = False
+        self.recombination = getattr(decoder_args, "recombination", False)
+        if self.recombination:
+            self.recomb_n = decoder_args.recomb_n
+            self.recomb_alpha = decoder_args.recomb_alpha
+            self.recomb_zip = False
 
         self.ngrams = defaultdict(set)
         # RCB: merge hypotheses if they share their last n-gram and differ
@@ -176,14 +178,15 @@ class BestFirstDecoder(Decoder):
 
                 continue
 
-            recombination_hypos = self.recombine(hypo)
-            if recombination_hypos:
-                # self.recombine updates self.full_list in place, so it isn't
-                # necessary to interact with it here.
-                for rec_hypo in recombination_hypos:
-                    covered_mass += math.exp(rec_hypo.score)  # might be problematic
-                    self.add_full_hypo(rec_hypo.generate_full_hypothesis())
-                continue
+            if self.recombination:
+                recombination_hypos = self.recombine(hypo)
+                if recombination_hypos:
+                    # self.recombine updates self.full_list in place, so it isn't
+                    # necessary to interact with it here.
+                    for rec_hypo in recombination_hypos:
+                        covered_mass += math.exp(rec_hypo.score)  # might be problematic
+                        self.add_full_hypo(rec_hypo.generate_full_hypothesis())
+                    continue
 
             # if you make it here, the current hypothesis is incomplete
             self.set_predictor_states(copy.deepcopy(hypo.predictor_states))
