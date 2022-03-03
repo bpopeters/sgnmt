@@ -92,17 +92,17 @@ class BestFirstDecoder(Decoder):
         # enabling n and alpha produces RCB. Enabling zip propagates the merge
         # backward.
         self.recombination = getattr(decoder_args, "recombination", False)
-        if self.recombination:
-            self.recomb_n = decoder_args.recomb_n
-            self.recomb_alpha = decoder_args.recomb_alpha
-            self.recomb_zip = False
+
+        self.recomb_n = getattr(decoder_args, "recomb_n", -1)
+        self.recomb_alpha = getattr(decoder_args, "recomb_alpha", -1)
+        self.recomb_zip = False
 
         self.ngrams = defaultdict(set)
         # RCB: merge hypotheses if they share their last n-gram and differ
         # from finished hypotheses in length by less than alpha
 
     def add_full_hypo(self, hypo):
-        if self.recomb_n > 0:
+        if self.recombination:
             i = len(self.full_hypos)
             hypo_ngrams = ngrams(hypo.trgt_sentence, self.recomb_n)
             for j, ngram in enumerate(hypo_ngrams):
