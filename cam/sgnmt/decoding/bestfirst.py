@@ -161,15 +161,6 @@ class BestFirstDecoder(Decoder):
                              covered_mass,
                              hypo.trgt_sentence))
 
-            recombination_hypos = self.recombine(hypo)
-            if recombination_hypos:
-                # self.recombine updates self.full_list in place, so it isn't
-                # necessary to interact with it here.
-                for rec_hypo in recombination_hypos:
-                    covered_mass += math.exp(rec_hypo.score)  # might be problematic
-                    self.add_full_hypo(rec_hypo.generate_full_hypothesis())
-                continue
-
             # is the current hypothesis finished?
             if hypo.get_last_word() == utils.EOS_ID:
                 # maybe update best score
@@ -183,6 +174,15 @@ class BestFirstDecoder(Decoder):
                 # log probability)
                 covered_mass += math.exp(hypo.score)
 
+                continue
+
+            recombination_hypos = self.recombine(hypo)
+            if recombination_hypos:
+                # self.recombine updates self.full_list in place, so it isn't
+                # necessary to interact with it here.
+                for rec_hypo in recombination_hypos:
+                    covered_mass += math.exp(rec_hypo.score)  # might be problematic
+                    self.add_full_hypo(rec_hypo.generate_full_hypothesis())
                 continue
 
             # if you make it here, the current hypothesis is incomplete
