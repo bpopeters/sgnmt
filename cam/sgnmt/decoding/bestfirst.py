@@ -92,7 +92,7 @@ class BestFirstDecoder(Decoder):
         # enabling n and alpha produces RCB. Enabling zip propagates the merge
         # backward.
         self.recomb_n = decoder_args.recomb_n
-        slef.recomb_alpha = decoder_args.recomb_alpha
+        self.recomb_alpha = decoder_args.recomb_alpha
         self.recomb_zip = False
 
         self.ngrams = defaultdict(set)
