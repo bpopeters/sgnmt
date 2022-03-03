@@ -111,7 +111,7 @@ class BestFirstDecoder(Decoder):
         # hypothesis.
         if self.recomb_n > 0:
             i = len(self.full_hypos)
-            hypo_ngrams = ngrams(hypo.trgt_sentence)
+            hypo_ngrams = ngrams(hypo.trgt_sentence, self.recomb_n)
             for j, ngram in enumerate(hypo_ngrams):
                 # j is the start index of the ngram
                 self.ngrams[ngram].add((i, j))
@@ -126,13 +126,16 @@ class BestFirstDecoder(Decoder):
         # If there are any, add them to the list of complete hypotheses and
         # return True.
         # Otherwise, return False.
-        last_ngram = hypo.trgt_sentence[-self.recomb_n:]
+        last_ngram = tuple(hypo.trgt_sentence[-self.recomb_n:])
         matches = self.ngrams[last_ngram]
+        new_hypos = []
         if matches:
             for finished_index, match_pos in matches:
                 finished_hypo = self.full_hypos[finished_index]
-                new_hypo = self.merge(finished_hypo, match_pos)
-                self.add_full_hypo(new_hypo)
+                new_hypo = hypo.merge(finished_hypo, match_pos)
+                new_hypos.append(new_hypo)
+            for h in new_hypos:
+                self.add_full_hypo(h)
             # do we add all of the matches or only one of them? all for now
             return True
         return False
