@@ -91,8 +91,8 @@ class BestFirstDecoder(Decoder):
         self.child_filtering = "sparse"
         # enabling n and alpha produces RCB. Enabling zip propagates the merge
         # backward.
-        self.recomb_n = 0
-        self.recomb_alpha = 0
+        self.recomb_n = args.recomb_n
+        slef.recomb_alpha = args.recomb_alpha
         self.recomb_zip = False
 
         self.ngrams = defaultdict(set)
@@ -100,15 +100,6 @@ class BestFirstDecoder(Decoder):
         # from finished hypotheses in length by less than alpha
 
     def add_full_hypo(self, hypo):
-        # we need to keep track of all of the n-grams in the full hypo
-        # maybe stratified by length? not sure.
-        # But the general idea is, map from n-grams to the full hypotheses
-        # that contain them.
-        # Is it possible that multiple hypotheses will share the same final
-        # ngram? Probably.
-        # hypo.trgt_sentence[-self.recomb_n:]
-        # I guess we need to add *all* of the ngrams from the new full
-        # hypothesis.
         if self.recomb_n > 0:
             i = len(self.full_hypos)
             hypo_ngrams = ngrams(hypo.trgt_sentence, self.recomb_n)
@@ -128,12 +119,14 @@ class BestFirstDecoder(Decoder):
         # Otherwise, return False.
         last_ngram = tuple(hypo.trgt_sentence[-self.recomb_n:])
         matches = self.ngrams[last_ngram]
-        new_hypos = []
         if matches:
+            new_hypos = []
             for finished_index, match_pos in matches:
                 finished_hypo = self.full_hypos[finished_index]
-                new_hypo = hypo.merge(finished_hypo, match_pos)
-                new_hypos.append(new_hypo)
+                len_diff = abs(len(finished_hypo.trgt_sentence) - len(hypo.trgt_sentence))
+                if len_diff < self.recomb_alpha:
+                    new_hypo = hypo.merge(finished_hypo, match_pos)
+                    new_hypos.append(new_hypo)
             for h in new_hypos:
                 self.add_full_hypo(h.generate_full_hypothesis())
             # do we add all of the matches or only one of them? all for now

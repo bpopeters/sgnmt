@@ -872,9 +872,7 @@ def _apply_per_sentence_predictor_weights(src, decoder):
     return src
 
 
-def do_decode(decoder, 
-              output_handlers, 
-              src_sentences):
+def do_decode(decoder, output_handlers, src_sentences):
     """This method contains the main decoding loop. It iterates through
     ``src_sentences`` and applies ``decoder.decode()`` to each of them.
     At the end, it calls the output handlers to create output files.
@@ -908,7 +906,7 @@ def do_decode(decoder,
             start_hypo_time = time.time()
             decoder.apply_predictors_count = 0
             hypos = [hypo for hypo in decoder.decode(src)
-                        if hypo.total_score > args.min_score]
+                     if hypo.total_score > args.min_score]
             if not hypos:
                 logging.error("No translation found for ID %d!" % (sen_idx+1))
                 logging.info("Stats (ID: %d): score=<not-found> "
