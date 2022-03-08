@@ -5,6 +5,8 @@ import copy
 import heapq
 import logging
 from collections import defaultdict
+from itertools import accumulate
+import operator
 
 from cam.sgnmt import utils
 from cam.sgnmt.decoding.core import Decoder, PartialHypothesis
@@ -88,7 +90,16 @@ class BestFirstDecoder(Decoder):
         self.ad_hoc_completion = True
         # sparse is the same as "none" for dense models. Also consider topk,
         # nucleus
-        self.child_filtering = "sparse"
+        # the filtering can be
+        # - absolute (don't accept children with probability less than the
+        #             threshold)
+        # - nucleus (accept the top p)
+        # - topk (accept the top k)
+        self.child_filtering = getattr(decoder_args, "child_filtering", "absolute")
+        assert self.child_filtering in {"absolute", "nucleus", "topk"}
+        self.child_threshold = getattr(decoder_args, "child_threshold", -math.inf)
+        if self.child_filtering == "topk":
+            assert isinstance(self.child_threshold, int)
         # enabling n and alpha produces RCB. Enabling zip propagates the merge
         # backward.
         self.recombination = getattr(decoder_args, "recombination", False)
@@ -132,12 +143,24 @@ class BestFirstDecoder(Decoder):
         """
         This also orders children, it doesn't just filter them
         """
+
+        thresh = self.child_threshold if self.child_filtering == "absolute" else -math.inf
         children = sorted(
-            [i for i in posterior.items() if i[1] > -math.inf],
+            [i for i in posterior.items() if i[1] > thresh],
             key=lambda child: child[1],
             reverse=True
         )
-        return children
+        if self.child_filtering == "absolute":
+            return children
+        else:
+            if self.child_filtering == "topk":
+                k = self.child_threshold
+            else:
+                # nucleus search is a dynamic k
+                cum_prob = accumulate((p for word, p in children), operator.add)
+                k = next((k for k, p in enumerate(cum_prob, 1) if p >= 0.9))
+
+            return children[:k]
 
     def decode(self, src_sentence):
         """Decodes a single source sentence using A* search. """
