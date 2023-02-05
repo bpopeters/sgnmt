@@ -112,6 +112,24 @@ class BestFirstDecoder(Decoder):
         # RCB: merge hypotheses if they share their last n-gram and differ
         # from finished hypotheses in length by less than alpha
 
+    def initialize_predictors(self, src_sentence):
+        """First, increases the sentence id counter and calls
+        ``initialize()`` on all predictors. Then, ``initialize()`` is
+        called for all heuristics.
+        
+        Args:
+            src_sentence (list): List of source word ids without <S> or
+                                 </S> which make up the source sentence
+        """
+        self.max_len = self.max_len_factor * len(src_sentence)
+        self.full_hypos = []
+        self.current_sen_id += 1
+        for idx, (p, _) in enumerate(self.predictors):
+            p.set_current_sen_id(self.current_sen_id)
+            p.initialize(src_sentence)
+        for h in self.heuristics:
+            h.initialize(src_sentence)
+
     def add_full_hypo(self, hypo):
         if self.recombination:
             i = len(self.full_hypos)
@@ -120,6 +138,18 @@ class BestFirstDecoder(Decoder):
                 # j is the start index of the ngram
                 self.ngrams[ngram].add((i, j))
         super().add_full_hypo(hypo)
+
+    def get_full_hypos_sorted(self):
+        """Returns ``full_hypos`` sorted by the total score. Can be 
+        used by implementing subclasses as return value of
+        ``decode``
+        
+        Returns:
+            list. ``full_hypos`` sorted by ``total_score``.
+        """
+        return sorted(self.full_hypos,
+                      key=lambda hypo: hypo.total_score,
+                      reverse=True)
 
     def recombine(self, hypo):
         """
